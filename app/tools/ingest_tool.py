@@ -1,15 +1,3 @@
-"""
-tools/ingest_tool.py — PDF ingestion pipeline
-
-Steps:
-1. Parse PDF → raw text per page (pypdf)
-2. Chunk text into overlapping windows (~500 tokens each)
-3. Embed chunks via Vertex AI text-embedding model
-4. Store in ChromaDB with metadata
-5. Classify document type
-6. Return IngestedDocument schema
-"""
-
 from __future__ import annotations
 import logging
 import os
@@ -27,7 +15,7 @@ from app.schemas import IngestedDocument
 log = logging.getLogger(__name__)
 
 PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
 MODEL    = "gemini-2.5-flash"
 EMBED_MODEL = "text-embedding-004"
 
@@ -45,10 +33,8 @@ def get_collection() -> chromadb.Collection:
     )
 
 
-# ── Text extraction ───────────────────────────────────────────────────────────
 
 def extract_text_from_pdf(file_bytes: bytes) -> tuple[str, int]:
-    """Return (full_text, page_count)."""
     import io
     reader = PdfReader(io.BytesIO(file_bytes))
     pages = []
@@ -59,13 +45,8 @@ def extract_text_from_pdf(file_bytes: bytes) -> tuple[str, int]:
     return "\n\n".join(pages), len(reader.pages)
 
 
-# ── Chunking ──────────────────────────────────────────────────────────────────
 
 def chunk_text(text: str, chunk_size: int = 600, overlap: int = 100) -> list[str]:
-    """
-    Split text into overlapping word-count chunks.
-    chunk_size ~ 600 words ≈ 800 tokens, safe for embedding model.
-    """
     words = text.split()
     chunks = []
     start = 0
@@ -79,12 +60,9 @@ def chunk_text(text: str, chunk_size: int = 600, overlap: int = 100) -> list[str
     return chunks
 
 
-# ── Embedding ─────────────────────────────────────────────────────────────────
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed a list of texts using Vertex AI text-embedding-004."""
     embeddings = []
-    # Vertex AI embedding has a batch limit of 5 texts
     batch_size = 5
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
@@ -103,7 +81,6 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     return embeddings
 
 
-# ── Document type classification ──────────────────────────────────────────────
 
 CLASSIFY_SYSTEM = """
 You are a contract classification expert. Given the first 600 words of a document,
@@ -123,7 +100,6 @@ Return ONLY a JSON object with no markdown:
 
 
 def classify_document(text_preview: str) -> tuple[str, str, bool]:
-    """Returns (doc_type, summary, is_contract)."""
     import json, re as _re
     preview = " ".join(text_preview.split()[:600])
     try:
@@ -148,23 +124,16 @@ def classify_document(text_preview: str) -> tuple[str, str, bool]:
         return "unknown", "Contract document uploaded for analysis.", True
 
 
-# ── Main ingestion pipeline ───────────────────────────────────────────────────
 
 def ingest_document(file_bytes: bytes, filename: str) -> IngestedDocument:
-    """
-    Full pipeline: bytes → parse → chunk → embed → ChromaDB.
-    Returns IngestedDocument with doc_id for downstream agents.
-    """
     doc_id = str(uuid.uuid4())
     log.info("ingest_document: %s → doc_id=%s", filename, doc_id)
 
-    # 1. Extract text
     full_text, page_count = extract_text_from_pdf(file_bytes)
     if not full_text.strip():
         raise ValueError(f"No text could be extracted from {filename}")
     log.info("ingest_document: extracted %d chars, %d pages", len(full_text), page_count)
 
-    # 2. Classify — and reject non-contracts immediately
     doc_type, summary, is_contract = classify_document(full_text)
     if not is_contract:
         raise ValueError(
@@ -172,14 +141,11 @@ def ingest_document(file_bytes: bytes, filename: str) -> IngestedDocument:
             "Please upload a contract, NDA, terms sheet, or employment agreement."
         )
 
-    # 3. Chunk
     chunks = chunk_text(full_text)
 
-    # 4. Embed
     log.info("ingest_document: embedding %d chunks...", len(chunks))
     embeddings = embed_texts(chunks)
 
-    # 5. Store in ChromaDB
     collection = get_collection()
     ids        = [f"{doc_id}_{i}" for i in range(len(chunks))]
     metadatas  = [
@@ -214,7 +180,6 @@ def ingest_document(file_bytes: bytes, filename: str) -> IngestedDocument:
 
 
 def _store_full_text(doc_id: str, text: str, filename: str, doc_type: str) -> None:
-    """Store the full document text in a simple JSON file for agent access."""
     import json
     store_dir = Path(__file__).resolve().parents[2] / "data" / "documents"
     store_dir.mkdir(parents=True, exist_ok=True)
@@ -229,7 +194,6 @@ def _store_full_text(doc_id: str, text: str, filename: str, doc_type: str) -> No
 
 
 def get_full_text(doc_id: str) -> str:
-    """Retrieve the full document text for a given doc_id."""
     import json
     store_dir = Path(__file__).resolve().parents[2] / "data" / "documents"
     path = store_dir / f"{doc_id}.json"

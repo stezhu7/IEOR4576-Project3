@@ -1,12 +1,3 @@
-"""
-agents/orchestrator.py — Orchestrator + Critic
-
-Responsibilities:
-1. Fan out to Risk, Gap, and Negotiation agents in parallel (asyncio.gather)
-2. Pass combined findings to the Critic agent
-3. Assemble and return the final ContractReport
-"""
-
 from __future__ import annotations
 import asyncio
 import json
@@ -28,7 +19,7 @@ from app.agents.negotiation_agent import run_negotiation_agent
 log = logging.getLogger(__name__)
 
 PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
 MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
@@ -158,8 +149,6 @@ async def run_critic(
         )
 
 
-# ── Main pipeline ─────────────────────────────────────────────────────────────
-
 async def analyze_contract(
     doc_id: str,
     filename: str,
@@ -173,7 +162,6 @@ async def analyze_contract(
     """
     log.info("orchestrator: analyzing doc_id=%s (%s)", doc_id, filename)
 
-    # Step 1: Parallel fan-out (grab-bag: Parallel Execution)
     log.info("orchestrator: launching 3 agents in parallel")
     risk, gaps, negotiation = await asyncio.gather(
         run_risk_agent(doc_id),
@@ -182,7 +170,6 @@ async def analyze_contract(
         return_exceptions=True,
     )
 
-    # Handle any agent failures gracefully
     if isinstance(risk, Exception):
         log.error("orchestrator: risk_agent failed: %s", risk)
         risk = RiskAnalysis(risky_clauses=[], overall_risk_score=5,
@@ -198,7 +185,6 @@ async def analyze_contract(
 
     log.info("orchestrator: all agents complete, running critic")
 
-    # Step 2: Critic reviews combined findings
     verdict = await run_critic(risk, gaps, negotiation)
 
     log.info("orchestrator: critic verdict — score=%d label=%s",

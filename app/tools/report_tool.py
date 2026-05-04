@@ -1,10 +1,3 @@
-"""
-tools/report_tool.py — PDF Report Generator (Artifact)
-
-Generates a downloadable PDF report from ContractReport.
-Saves to artifacts/ directory — persistent output to disk.
-"""
-
 from __future__ import annotations
 import logging
 import os
@@ -27,7 +20,6 @@ log = logging.getLogger(__name__)
 ARTIFACTS_DIR = Path(__file__).resolve().parents[2] / "artifacts"
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Colour palette
 RED    = colors.HexColor("#E24B4A")
 AMBER  = colors.HexColor("#BA7517")
 GREEN  = colors.HexColor("#1D9E75")
@@ -78,7 +70,6 @@ def generate_report(report: ContractReport) -> str:
     s = _styles()
     story = []
 
-    # ── Header ────────────────────────────────────────────────────────────────
     story.append(Paragraph("Clause — Contract Analysis Report", s["Title"]))
     story.append(Paragraph(
         f"<b>File:</b> {report.filename} &nbsp;|&nbsp; "
@@ -88,7 +79,6 @@ def generate_report(report: ContractReport) -> str:
     ))
     story.append(HRFlowable(width="100%", thickness=1, color=BLUE, spaceAfter=10))
 
-    # ── Risk score banner ─────────────────────────────────────────────────────
     v     = report.verdict
     score = v.final_risk_score
     label = v.risk_label.upper()
@@ -116,18 +106,15 @@ def generate_report(report: ContractReport) -> str:
     story.append(score_table)
     story.append(Spacer(1, 8))
 
-    # ── Executive summary ─────────────────────────────────────────────────────
     story.append(Paragraph("Executive Summary", s["H2"]))
     story.append(Paragraph(v.executive_summary, s["Body"]))
     story.append(Spacer(1, 6))
 
-    # ── Top 3 actions ─────────────────────────────────────────────────────────
     story.append(Paragraph("Top 3 Actions", s["H2"]))
     for i, action in enumerate(v.top_three_actions, 1):
         story.append(Paragraph(f"{i}. {action}", s["Body"]))
     story.append(Spacer(1, 6))
 
-    # ── Risky clauses ─────────────────────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
     story.append(Paragraph(
         f"Risk Analysis  <font color='gray'>(score: {report.risk.overall_risk_score}/10)</font>",
@@ -152,7 +139,6 @@ def generate_report(report: ContractReport) -> str:
     else:
         story.append(Paragraph("No significant risk clauses identified.", s["Body"]))
 
-    # ── Missing terms ─────────────────────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
     story.append(Paragraph(
         f"Gap Analysis  <font color='gray'>(completeness: {report.gaps.completeness_score}/10)</font>",
@@ -176,7 +162,6 @@ def generate_report(report: ContractReport) -> str:
             ]
             story.append(KeepTogether(block))
 
-    # ── Negotiation suggestions ───────────────────────────────────────────────
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
     story.append(Paragraph("Negotiation Suggestions", s["H2"]))
 
@@ -203,7 +188,6 @@ def generate_report(report: ContractReport) -> str:
             ]
             story.append(KeepTogether(block))
 
-    # ── Footer disclaimer ─────────────────────────────────────────────────────
     story.append(Spacer(1, 16))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
     story.append(Paragraph(

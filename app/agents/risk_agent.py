@@ -1,10 +1,3 @@
-"""
-agents/risk_agent.py — Risk Analyzer Agent
-
-Queries RAG for risky clause types (non-compete, IP assignment,
-indemnification, liability) and returns structured RiskAnalysis.
-"""
-
 from __future__ import annotations
 import json
 import logging
@@ -21,7 +14,7 @@ from app.tools.ingest_tool import get_full_text
 log = logging.getLogger(__name__)
 
 PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
 MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
@@ -116,12 +109,10 @@ def _parse_json(text: str) -> dict:
 
 
 async def run_risk_agent(doc_id: str) -> RiskAnalysis:
-    """Run the risk analyzer on a contract. Called in parallel by orchestrator."""
     import asyncio
 
     log.info("risk_agent: starting for doc_id=%s", doc_id)
 
-    # Use full text for accurate analysis — RAG fragments cause hallucination
     try:
         full_text = get_full_text(doc_id)
         words = full_text.split()

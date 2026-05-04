@@ -1,10 +1,3 @@
-"""
-agents/gap_agent.py — Gap Detector Agent
-
-Checks what standard contract terms are MISSING.
-Contract-type aware: different standards for freelance vs commercial supply vs loan.
-"""
-
 from __future__ import annotations
 import asyncio
 import json
@@ -21,7 +14,7 @@ from app.tools.ingest_tool import get_full_text
 log = logging.getLogger(__name__)
 
 PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
 MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
@@ -109,7 +102,6 @@ def _parse_json(text: str) -> dict:
 
 
 async def run_gap_agent(doc_id: str) -> GapAnalysis:
-    """Run the gap detector. Called in parallel by orchestrator."""
     log.info("gap_agent: starting for doc_id=%s", doc_id)
 
     try:

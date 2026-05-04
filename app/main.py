@@ -1,7 +1,3 @@
-"""
-app/main.py — FastAPI entry point for Clause AI
-"""
-
 import logging
 import os
 from pathlib import Path
@@ -25,7 +21,6 @@ ARTIFACTS_DIR = Path(__file__).resolve().parents[1] / "artifacts"
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/artifacts", StaticFiles(directory=str(ARTIFACTS_DIR)), name="artifacts")
 
-# In-memory store for ingested doc metadata (per-session)
 _doc_store: dict[str, dict] = {}
 
 

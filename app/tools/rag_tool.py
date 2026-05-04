@@ -1,9 +1,3 @@
-"""
-tools/rag_tool.py — RAG retrieval over ChromaDB
-
-Agents call retrieve_clauses() to get the most relevant
-contract chunks for their analysis task.
-"""
 
 from __future__ import annotations
 import logging
@@ -32,12 +26,10 @@ def retrieve_clauses(
     """
     log.info("retrieve_clauses: doc_id=%s, query=%r, n=%d", doc_id, query, n_results)
 
-    # Embed the query
     query_embedding = embed_texts([query])[0]
 
     collection = get_collection()
 
-    # Query ChromaDB filtered to this document
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=n_results,
@@ -63,10 +55,6 @@ def retrieve_clauses(
 
 
 def retrieve_all_chunks(doc_id: str) -> list[str]:
-    """
-    Retrieve ALL chunks for a document, ordered by chunk_idx.
-    Used by agents that need the full contract text.
-    """
     collection = get_collection()
     results = collection.get(
         where={"doc_id": doc_id},
@@ -85,11 +73,6 @@ def retrieve_all_chunks(doc_id: str) -> list[str]:
 
 
 def format_chunks_for_prompt(chunks: list[dict], max_chars: int = 4000, min_relevance: float = 0.3) -> str:
-    """
-    Format retrieved chunks into a compact string for injection into an agent prompt.
-    Filters out chunks below min_relevance threshold to prevent hallucination.
-    """
-    # Filter low-relevance chunks first
     relevant = [c for c in chunks if c["relevance_score"] >= min_relevance]
     if not relevant:
         return "[No relevant clauses found in this document for the queried topics.]"

@@ -1,15 +1,8 @@
-"""
-schemas.py — Pydantic structured output contracts for every agent boundary.
-
-Every agent emits one of these; the orchestrator validates before passing downstream.
-"""
-
 from __future__ import annotations
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
-# ── Ingestion ─────────────────────────────────────────────────────────────────
 
 class IngestedDocument(BaseModel):
     doc_id: str                     = Field(description="UUID for this document in ChromaDB")
@@ -20,7 +13,6 @@ class IngestedDocument(BaseModel):
     summary: str                    = Field(description="2-sentence description of the document")
 
 
-# ── Risk Analyzer ─────────────────────────────────────────────────────────────
 
 class RiskClause(BaseModel):
     clause_title: str               = Field(description="Name of the clause, e.g. 'Non-Compete'")
@@ -36,7 +28,6 @@ class RiskAnalysis(BaseModel):
     top_concern: str                = Field(description="Single most important risk in one sentence")
 
 
-# ── Gap Detector ──────────────────────────────────────────────────────────────
 
 class MissingTerm(BaseModel):
     term_name: str                  = Field(description="e.g. 'Payment schedule', 'Dispute resolution'")
@@ -51,7 +42,6 @@ class GapAnalysis(BaseModel):
     summary: str                    = Field(description="Overall assessment of contract completeness")
 
 
-# ── Negotiation Agent ─────────────────────────────────────────────────────────
 
 class NegotiationSuggestion(BaseModel):
     clause_title: str
@@ -71,7 +61,6 @@ class NegotiationAnalysis(BaseModel):
     )
 
 
-# ── Critic ────────────────────────────────────────────────────────────────────
 
 class CriticVerdict(BaseModel):
     final_risk_score: int           = Field(ge=0, le=10)
@@ -81,7 +70,6 @@ class CriticVerdict(BaseModel):
     confidence: Literal["high", "medium", "low"]
 
 
-# ── Full report (assembled from all agents) ───────────────────────────────────
 
 class ContractReport(BaseModel):
     doc_id: str
@@ -93,7 +81,6 @@ class ContractReport(BaseModel):
     verdict:     CriticVerdict
 
 
-# ── API shapes ────────────────────────────────────────────────────────────────
 
 class UploadResponse(BaseModel):
     doc_id:     str

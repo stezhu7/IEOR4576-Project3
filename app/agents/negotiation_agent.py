@@ -1,11 +1,3 @@
-"""
-agents/negotiation_agent.py — Negotiation Agent
-
-Uses the FULL contract text (same approach as gap_agent) instead of RAG.
-RAG only retrieves fragments, causing hallucination on well-written contracts.
-Full text gives the model accurate context to judge what's actually unfair.
-"""
-
 from __future__ import annotations
 import asyncio
 import json
@@ -22,7 +14,7 @@ from app.tools.ingest_tool import get_full_text
 log = logging.getLogger(__name__)
 
 PROJECT  = os.environ.get("GOOGLE_CLOUD_PROJECT")
-LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+LOCATION = os.environ.get("GOOGLE_CLOUD_REGION", "europe-west1")
 MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
@@ -103,7 +95,6 @@ def _parse_json(text: str) -> dict:
 
 
 async def run_negotiation_agent(doc_id: str) -> NegotiationAnalysis:
-    """Run negotiation advisor using full contract text. Called in parallel by orchestrator."""
     log.info("negotiation_agent: starting for doc_id=%s", doc_id)
 
     # Use full text — same as gap_agent

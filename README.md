@@ -6,7 +6,7 @@ An AI-powered contract review agent that protects freelancers, small businesses,
 
 ## Live Demo
 
-**Deployed URL:** `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/02d7968c-e1d4-4caa-8915-cfed9357905f?project=my-project-4576-project3`
+**Deployed URL:** `https://ieor4576-project3-git-117951089771.europe-west1.run.app`
 
 ---
 
@@ -34,15 +34,15 @@ The system is **contract-type aware**: it applies different standards to freelan
 ### Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/stezhu7/IEOR4576-Project3
 cd clause
 
 # Install dependencies
 uv sync
 
 # Set environment variables (PowerShell)
-$env:GOOGLE_CLOUD_PROJECT = "your-project-id"
-$env:GOOGLE_CLOUD_REGION  = "us-central1"
+$env:GOOGLE_CLOUD_PROJECT = "my-project-4576-project3"
+$env:GOOGLE_CLOUD_REGION  = "europe-west1"
 $env:PYTHONPATH           = "."
 
 # Activate venv and start
@@ -62,16 +62,16 @@ Open `http://127.0.0.1:8000` and upload a contract PDF.
 ## Deploying to Cloud Run
 
 ```bash
-export PROJECT_ID=your-project-id
+export PROJECT_ID=my-project-4576-project3
 
 gcloud builds submit . --tag gcr.io/$PROJECT_ID/clause-ai --project $PROJECT_ID
 
 gcloud run deploy clause-ai \
   --image gcr.io/$PROJECT_ID/clause-ai \
-  --region us-central1 \
+  --region europe-west1 \
   --allow-unauthenticated \
   --memory 2Gi \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_REGION=us-central1" \
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_REGION=europe-west1" \
   --project $PROJECT_ID
 ```
 
