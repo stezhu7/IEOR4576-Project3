@@ -6,7 +6,7 @@ An AI-powered contract review agent that protects freelancers, small businesses,
 
 ## Live Demo
 
-**Deployed URL:** `https://<your-cloud-run-url>`
+**Deployed URL:** `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/02d7968c-e1d4-4caa-8915-cfed9357905f?project=my-project-4576-project3`
 
 ---
 

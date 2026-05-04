@@ -9,9 +9,9 @@ RUN uv pip install --system --no-cache -e .
 
 COPY app/    ./app/
 COPY static/ ./static/
-COPY data/   ./data/
+COPY eval/   ./eval/
 
-RUN mkdir -p artifacts data/chroma data/documents
+RUN mkdir -p artifacts data/chroma data/documents data/templates
 
 ENV PORT=8080
 EXPOSE 8080
