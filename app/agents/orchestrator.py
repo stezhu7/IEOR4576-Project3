@@ -46,18 +46,19 @@ You receive findings from three specialist agents:
 Your job:
 1. Review the findings for consistency and accuracy
 2. Assign a final risk score (0-10) — be calibrated:
-   - 0-2: very standard, safe contract
-   - 3-4: minor issues, low concern
-   - 5-6: several issues, review carefully
-   - 7-8: significant risks, negotiate before signing
-   - 9-10: do not sign without legal counsel
+   - 0: well-drafted contract, no meaningful risks
+   - 1-2: one or two minor concerns, generally safe to sign
+   - 3-5: genuine issues worth negotiating before signing
+   - 6-7: significant risks, careful review required
+   - 8-10: do not sign without legal counsel
+   IMPORTANT: One medium-severity issue = 1-2, NOT 3+. Reserve 6+ for multiple genuine issues.
 3. Write a plain-English executive summary (3-4 sentences, no jargon)
 4. Give exactly 3 concrete action items
 
 Return ONLY a JSON object with no markdown:
 {
-  "final_risk_score": 7,
-  "risk_label": "high",
+  "final_risk_score": 5,
+  "risk_label": "moderate",
   "executive_summary": "...",
   "top_three_actions": [
     "Request that the non-compete be limited to 6 months...",
@@ -67,7 +68,7 @@ Return ONLY a JSON object with no markdown:
   "confidence": "high"
 }
 
-risk_label must be: "low" (0-3), "moderate" (4-5), "high" (6-7), "critical" (8-10)
+risk_label must be: "low" (0-2), "moderate" (3-5), "high" (6-7), "critical" (8-10)
 confidence: "high" if 5+ risk issues found, "medium" if 2-4, "low" if 0-1
 """
 
@@ -143,7 +144,7 @@ async def run_critic(
         log.error("critic: parse failed: %s", exc)
         # Derive a reasonable verdict from the risk score
         score = risk.overall_risk_score
-        label = "low" if score <= 3 else "moderate" if score <= 5 else "high" if score <= 7 else "critical"
+        label = "low" if score <= 2 else "moderate" if score <= 5 else "high" if score <= 7 else "critical"
         return CriticVerdict(
             final_risk_score=score,
             risk_label=label,

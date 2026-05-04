@@ -15,7 +15,7 @@ from google import genai
 from google.genai import types
 
 from app.schemas import RiskAnalysis, RiskClause
-from app.tools.rag_tool import retrieve_clauses, format_chunks_for_prompt
+from app.tools.ingest_tool import get_full_text
 from app.tools.ingest_tool import get_full_text
 
 log = logging.getLogger(__name__)
@@ -26,52 +26,85 @@ MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
 
-RISK_QUERIES = [
-    "non-compete clause duration scope",
-    "intellectual property ownership work product",
-    "indemnification liability damages",
-    "termination without cause penalty",
-    "governing law jurisdiction",
-    "unlimited liability exposure",
-    "non-solicitation restriction",
-    "arbitration waiver jury trial",
-]
-
 RISK_SYSTEM = """
-You are a contract risk analyst specialising in freelance and commercial contracts.
-Your job is to protect the contractor or borrower (the weaker party).
+You are a contract risk analyst. Your job is to identify clauses that create genuine legal
+or financial exposure for the weaker or reviewing party.
 
-Analyse the provided contract excerpts and identify risky clauses.
+STRICT RULES:
+1. Only flag clauses that are ACTUALLY present and genuinely risky.
+2. original_text MUST be verbatim from the contract — copy exactly.
+3. Be calibrated by contract type — commercial supply agreements, loan agreements, and
+   freelance contracts have different risk standards.
+4. Do NOT flag clauses that are standard practice for their contract type.
+5. overall_risk_score calibration:
+   - 0: well-drafted contract, no meaningful risks
+   - 1-2: one or two minor concerns, generally safe to sign
+   - 3-5: genuine issues worth negotiating before signing
+   - 6-7: significant risks, careful review required
+   - 8-10: do not sign without legal counsel
+   IMPORTANT: A contract with only one medium-severity issue scores 1-2, NOT 3+.
+   Reserve 6+ for contracts with multiple genuine issues.
 
-Focus on:
-- Non-compete clauses (duration, geographic scope, breadth)
-- IP/work product assignment (does contractor keep any rights?)
-- Indemnification and liability (is the contractor exposed to unlimited liability?)
-- Termination clauses (can client terminate immediately with no pay?)
-- Governing law (unfavourable jurisdiction?)
-- One-sided arbitration / waiver of jury trial
-- Loan terms: interest rate, prepayment penalties, recourse provisions
+CONTRACT-TYPE SPECIFIC STANDARDS:
 
-For each risky clause found, extract the verbatim text (max 80 words).
+FREELANCE / SERVICE contracts — flag if:
+- Non-compete: over 12 months duration OR global/unlimited scope → high
+- IP: contractor loses ALL rights including portfolio use → high
+- Liability: unlimited, uncapped contractor exposure → high
+- Liability cap ONE-SIDED (contractor capped but client not) → medium
+- Termination: no notice period AND no kill fee → high
+- Confidentiality: perpetual with no end date → medium
+
+DO NOT flag in freelance contracts:
+- Mutual liability cap (both parties equally capped at contract value) — balanced and fair
+- Mutual consequential damages exclusion — standard in all contract types
+- Insurance requirements — normal commercial practice
+- Kill fee already present — do not flag termination as risky
+
+COMMERCIAL SUPPLY AGREEMENTS — flag if:
+- Liability cap: excludes cost of substitute goods AND caps at 12-month payments → high
+  (but note: 12-month cap + bodily injury carve-out is commercially common → medium)
+- Termination no-liability: broad exclusion of ALL damages including from non-compliant
+  termination → high. But if clause only excludes damages from COMPLIANT termination
+  (i.e. party followed all notice/cure requirements) → medium, as this is commercially normal
+- Governing law: completely absent in a cross-border contract → high
+- Warranty disclaimer: implied warranties fully disclaimed with no product warranty → high
+  (but: disclaimer alongside explicit product conformance warranty → medium)
+- Arbitration: mandatory arbitration with no governing law specified → medium
+
+LOAN / TERMS SHEETS — flag if:
+- No cure period before default → high
+- Interest rate above market or compounding unexpectedly → high
+- Full personal recourse with no carve-outs → high
+- Prepayment penalty in first 12 months → medium
+
+DO NOT flag as risks (any contract type):
+- Mutual liability caps (both parties equally capped) — balanced and fair
+- Mutual consequential damages exclusions — commercially standard
+- Most-favored pricing / best customer status absence — not a risk
+- Cross-default in simple bilateral contracts — not standard
+- Late payment interest tied to published rates like Prime Rate — commercially normal
+- Arbitration site in neutral third country — not inherently risky
+- Prevailing-party attorneys' fees — standard commercial practice
 
 Return ONLY a JSON object with no markdown fencing:
 {
   "risky_clauses": [
     {
-      "clause_title": "Non-Compete",
+      "clause_title": "Governing Law — Missing",
       "severity": "high",
-      "original_text": "...",
-      "explanation": "...",
-      "page_hint": "Section 9"
+      "original_text": "exact verbatim text from contract, or N/A if clause is absent",
+      "explanation": "why this is risky for this specific contract",
+      "page_hint": "Section 13 / Appendix A"
     }
   ],
-  "overall_risk_score": 7,
-  "top_concern": "The unlimited global non-compete clause..."
+  "overall_risk_score": 6,
+  "top_concern": "The most serious risk in one sentence"
 }
 
 Severity guide:
-- high: could cause significant financial or legal harm
-- medium: unfavourable but manageable
+- high: significant financial or legal exposure
+- medium: unfavourable but manageable, worth negotiating
 - low: minor imbalance, worth noting
 """
 
@@ -88,27 +121,17 @@ async def run_risk_agent(doc_id: str) -> RiskAnalysis:
 
     log.info("risk_agent: starting for doc_id=%s", doc_id)
 
-    # RAG: retrieve risk-relevant chunks
-    all_chunks = []
-    for query in RISK_QUERIES:
-        chunks = retrieve_clauses(doc_id, query, n_results=3)
-        all_chunks.extend(chunks)
+    # Use full text for accurate analysis — RAG fragments cause hallucination
+    try:
+        full_text = get_full_text(doc_id)
+        words = full_text.split()
+        if len(words) > 4000:
+            full_text = " ".join(words[:4000]) + "\n[... document truncated ...]"
+    except Exception as e:
+        log.error("risk_agent: could not load full text: %s", e)
+        full_text = "Document text unavailable."
 
-    # Deduplicate by chunk_idx
-    seen = set()
-    unique_chunks = []
-    for c in all_chunks:
-        if c["chunk_idx"] not in seen:
-            seen.add(c["chunk_idx"])
-            unique_chunks.append(c)
-
-    # Sort by relevance, take top 10
-    unique_chunks.sort(key=lambda x: x["relevance_score"], reverse=True)
-    top_chunks = unique_chunks[:10]
-
-    context = format_chunks_for_prompt(top_chunks, max_chars=5000)
-
-    prompt = f"Analyse this contract for risks:\n\n{context}"
+    prompt = f"Analyse this contract for genuine risks to the contractor:\n\n{full_text}"
 
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(

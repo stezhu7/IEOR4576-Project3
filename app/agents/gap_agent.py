@@ -2,7 +2,7 @@
 agents/gap_agent.py — Gap Detector Agent
 
 Checks what standard contract terms are MISSING.
-A freelancer may not notice what's absent — this agent does.
+Contract-type aware: different standards for freelance vs commercial supply vs loan.
 """
 
 from __future__ import annotations
@@ -27,50 +27,78 @@ MODEL    = "gemini-2.5-flash"
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
 
 GAP_SYSTEM = """
-You are a contract completeness expert. You review contracts to find what is MISSING —
-standard clauses that protect the contractor or weaker party but are absent.
+You are a contract completeness expert. You review contracts to find what is GENUINELY MISSING —
+not merely what could be added as a preference, but what creates real legal or financial exposure.
 
-Standard clauses to check for (by contract type):
+CRITICAL CALIBRATION RULES:
+1. First identify the contract type (freelance, supply agreement, loan/terms sheet, NDA, employment).
+   Apply the appropriate standard for THAT contract type — do not apply freelance standards to
+   commercial supply agreements, or loan agreement standards to service contracts.
+2. Only flag terms as "critical" if their absence creates serious, immediate legal or financial exposure.
+3. If a term exists but is implemented differently from best practice, do NOT flag it as missing.
+   (e.g. if cure period exists as 90 days but you prefer 30, that is not a gap — it exists)
+4. Do NOT flag the absence of "nice to have" terms as critical or recommended.
+5. Do NOT flag the absence of preferential terms (most-favored pricing, cross-default in simple
+   bilateral contracts) as gaps — these are negotiating points, not standard requirements.
 
-Freelance contracts should have:
-- Clear payment schedule and late payment penalties
-- Scope of work / change order process
-- Revision limits
-- Kill fee (partial payment if client cancels)
-- Portfolio / credit rights (can contractor show the work?)
-- Force majeure
-- Dispute resolution process
-- Governing law
-- Limitation of liability cap
+Standards by contract type:
 
-Terms sheets / loan agreements should have:
-- Default and cure period
-- Events of default definition
-- Cross-default provisions
-- Representations and warranties
-- Conditions precedent to funding
-- Clear maturity date and repayment schedule
+FREELANCE / SERVICE CONTRACT gaps to check:
+- Payment schedule (how/when contractor gets paid) — critical if completely absent
+- Kill fee or partial payment on early termination — critical if absent
+- Governing law — critical if absent
+- Scope definition (what is in/out of scope) — critical if vague or absent
+- IP ownership clarity — critical if ambiguous
+- Portfolio/credit rights for contractor — recommended if absent
+- Revision limits — optional
 
-For each missing term, provide a short example of standard language they could add.
+COMMERCIAL SUPPLY AGREEMENT gaps to check:
+- Governing law (substantive law, not just arbitration venue) — high if absent
+- Product specifications reference — critical if absent
+- Delivery terms and acceptance criteria — critical if absent
+- Material breach definition (even implicit) — check if cure mechanism exists before flagging
+- Force majeure — recommended if absent
+- Warranty disclaimer — check if present
+DO NOT flag as gaps in supply agreements:
+  - Cross-default provisions (optional in simple bilateral supply contracts)
+  - Conditions precedent to performance (unless contract is silent on performance obligations)
+  - Most-favored pricing / best customer terms (negotiating point, not a gap)
+  - Detailed events of default list (if material breach + cure already present)
+
+LOAN / TERMS SHEET gaps to check:
+- Events of default with cure periods — critical if absent
+- Maturity date and repayment schedule — critical if absent
+- Interest rate (fixed or referenced rate) — critical if absent
+- Governing law — critical if absent
+- Representations and warranties — recommended
+- Conditions precedent to funding — recommended
+
+NDA gaps to check:
+- Definition of confidential information — critical if absent
+- Duration of confidentiality obligation — critical if perpetual with no end date
+- Permitted disclosures / exceptions — recommended
+- Return of materials on termination — recommended
+
+For each genuinely missing term, explain concisely why its absence matters for THIS contract.
 
 Return ONLY a JSON object with no markdown fencing:
 {
   "missing_terms": [
     {
-      "term_name": "Kill fee",
+      "term_name": "Governing law",
       "importance": "critical",
-      "why_needed": "...",
-      "standard_language": "If Client cancels the project after work has begun..."
+      "why_needed": "The contract specifies AAA arbitration in the UK but does not state which country's substantive law governs interpretation. This gap could cause a costly preliminary dispute about applicable law.",
+      "standard_language": "This Agreement shall be governed by and construed in accordance with the laws of [agreed jurisdiction], excluding its conflict-of-laws rules."
     }
   ],
-  "completeness_score": 4,
-  "summary": "This contract is missing several key protections for the contractor..."
+  "completeness_score": 6,
+  "summary": "Overall assessment of completeness appropriate to this contract type."
 }
 
 Importance:
-- critical: serious financial or legal exposure without it
-- recommended: standard practice, should be included
-- optional: nice to have
+- critical: serious financial or legal exposure from this gap
+- recommended: standard practice for this contract type, should be included
+- optional: minor improvement only
 """
 
 
@@ -84,10 +112,8 @@ async def run_gap_agent(doc_id: str) -> GapAnalysis:
     """Run the gap detector. Called in parallel by orchestrator."""
     log.info("gap_agent: starting for doc_id=%s", doc_id)
 
-    # Use full text (gap detection needs the whole picture)
     try:
         full_text = get_full_text(doc_id)
-        # Truncate to ~4000 words to stay in context
         words = full_text.split()
         if len(words) > 4000:
             full_text = " ".join(words[:4000]) + "\n[... document truncated ...]"
@@ -95,7 +121,11 @@ async def run_gap_agent(doc_id: str) -> GapAnalysis:
         log.error("gap_agent: could not load full text: %s", e)
         full_text = "Document text unavailable."
 
-    prompt = f"Check this contract for missing standard terms:\n\n{full_text}"
+    prompt = (
+        "First identify the contract type, then check for genuinely missing standard terms "
+        "appropriate for that contract type. Do not flag terms that already exist.\n\n"
+        f"{full_text}"
+    )
 
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(

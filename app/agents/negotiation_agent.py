@@ -1,8 +1,9 @@
 """
 agents/negotiation_agent.py — Negotiation Agent
 
-Takes risky clauses found by the risk agent and rewrites them
-with more balanced language. Gives the user concrete text to propose.
+Uses the FULL contract text (same approach as gap_agent) instead of RAG.
+RAG only retrieves fragments, causing hallucination on well-written contracts.
+Full text gives the model accurate context to judge what's actually unfair.
 """
 
 from __future__ import annotations
@@ -15,8 +16,8 @@ import re
 from google import genai
 from google.genai import types
 
-from app.schemas import NegotiationAnalysis, NegotiationSuggestion
-from app.tools.rag_tool import retrieve_clauses, format_chunks_for_prompt
+from app.schemas import NegotiationAnalysis
+from app.tools.ingest_tool import get_full_text
 
 log = logging.getLogger(__name__)
 
@@ -26,56 +27,61 @@ MODEL    = "gemini-2.5-flash"
 
 _client = genai.Client(vertexai=True, project=PROJECT, location=LOCATION)
 
-NEGOTIATION_QUERIES = [
-    "non-compete clause",
-    "payment terms compensation",
-    "intellectual property work product ownership",
-    "termination clause notice period",
-    "indemnification liability",
-    "confidentiality obligations duration",
-    "interest rate loan repayment",
-    "prepayment penalty",
-]
-
 NEGOTIATION_SYSTEM = """
-You are a negotiation coach for freelancers and small business owners.
-Your job is to rewrite one-sided contract clauses into fairer, balanced language.
+You are a negotiation coach. You review the FULL contract text and suggest improvements
+ONLY for clauses that are genuinely one-sided or unfair for this type of contract.
 
-CRITICAL RULE: Only suggest changes for clauses that ACTUALLY EXIST in the provided text.
-- If a clause has blank fields (e.g. "for a period of __________ months"), flag it as incomplete
-  but do NOT invent specific values like "24 months" or "global scope".
-- Your original_text must be a verbatim quote from the provided contract excerpts.
-- Never fabricate clause language that isn't in the document.
-- If a clause is blank/incomplete, your suggestion should be to fill it in with fair terms,
-  not to rewrite text that doesn't exist yet.
+STRICT RULES:
+1. First identify the contract type. Apply appropriate standards for that type.
+2. Only flag clauses that are ACTUALLY present AND genuinely unfair.
+3. original_text MUST be verbatim from the contract — copy exactly.
+4. If a clause is already balanced and appropriate for its contract type, do NOT suggest changes.
+5. Return empty suggestions [] if the contract is already well-balanced.
+   A short or empty list is a GOOD outcome for a fair contract.
+6. Do NOT suggest removing or weakening standard commercial protections just because
+   they favour one party — both parties' standard protections are legitimate.
 
-For each problematic clause you find:
-1. Quote the ACTUAL text from the contract (verbatim)
-2. Identify what makes it unfair or incomplete
-3. Provide replacement or completion language that is professional and balanced
+CONTRACT-TYPE STANDARDS:
 
-Principles for fair language:
-- Non-compete: limit to 6 months max, specific industry, specific geography
-- IP: contractor retains portfolio rights; client gets exclusive use license
-- Termination: client must give 14 days notice; kill fee of 25% for cancellation after start
-- Liability: cap at total contract value (not unlimited)
-- Confidentiality: limit to 2 years after contract end (not perpetual)
-- Payment: add 1.5%/month late payment interest
-- Loan: cure period of 30 days before default declared
+FREELANCE / SERVICE CONTRACTS — suggest improvements if:
+- Non-compete: over 12 months → suggest 6 months max
+- IP: contractor loses ALL rights including portfolio → add portfolio retention
+- Termination: less than 14 days notice OR no kill fee → improve both
+- Liability: fully uncapped for contractor → suggest cap at contract value
+- Confidentiality: perpetual → suggest 2-year limit
 
-Return ONLY a JSON object with no markdown fencing:
+COMMERCIAL SUPPLY AGREEMENTS — suggest improvements if:
+- Governing law: completely absent in cross-border contract → suggest adding
+- Liability cap: excludes substitute goods cost AND based only on 12-month payments
+  with no floor → suggest a reasonable floor amount
+- Termination no-liability: applies even to non-compliant termination (not just compliant)
+  → narrow to compliant termination only
+- Arbitration: no governing substantive law specified → suggest adding governing law
+DO NOT suggest changes to:
+  - Late payment interest tied to published rates (Prime Rate, SOFR, etc.) — commercially normal
+  - Arbitration in neutral third country — not inherently unfair
+  - Prevailing-party attorneys' fees — standard commercial practice
+  - Liability caps that are industry-standard (12-month rolling cap with bodily injury carve-out)
+  - Most-favored pricing absence — negotiating point, not a fairness issue
+
+LOAN / TERMS SHEETS — suggest improvements if:
+- No cure period → suggest 30 days
+- Prepayment penalty in first 12 months with no carve-out → suggest carve-out for refinancing
+
+For each genuine issue:
 {
-  "suggestions": [
-    {
-      "clause_title": "Non-Compete",
-      "issue": "Duration is blank — client could fill in any duration",
-      "original_text": "for a period of __________ months",
-      "suggested_text": "for a period of six (6) months following termination, limited to direct competitors within the same city",
-      "benefit_to_user": "Fixes the blank to a reasonable 6-month local restriction..."
-    }
-  ],
-  "negotiation_priority": ["Non-Compete", "IP Assignment", "Termination"],
-  "leverage_note": "This appears to be a standard template contract with room for negotiation..."
+  "clause_title": "...",
+  "issue": "specific reason this is unfair for this contract type",
+  "original_text": "EXACT verbatim quote from the contract",
+  "suggested_text": "improved replacement — must be realistic for this contract type",
+  "benefit_to_user": "how this change protects the user without being unreasonable"
+}
+
+Return ONLY a JSON object with no markdown:
+{
+  "suggestions": [],
+  "negotiation_priority": [],
+  "leverage_note": "Overall assessment: is this a standard contract for its type? What is the negotiating position?"
 }
 """
 
@@ -83,16 +89,12 @@ Return ONLY a JSON object with no markdown fencing:
 def _parse_json(text: str) -> dict:
     text = re.sub(r"^```(?:json)?", "", text.strip(), flags=re.I).strip()
     text = re.sub(r"```$", "", text).strip()
-    # Attempt to repair truncated JSON by closing open structures
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Find last complete suggestion object and close the JSON
         last_complete = text.rfind('},')
         if last_complete > 0:
-            truncated = text[:last_complete + 1]
-            # Close suggestions array and add required fields
-            repaired = truncated + '], "negotiation_priority": [], "leverage_note": "Analysis truncated — see individual suggestions above."}'
+            repaired = text[:last_complete + 1] + '], "negotiation_priority": [], "leverage_note": "Analysis truncated."}'
             try:
                 return json.loads(repaired)
             except Exception:
@@ -101,27 +103,25 @@ def _parse_json(text: str) -> dict:
 
 
 async def run_negotiation_agent(doc_id: str) -> NegotiationAnalysis:
-    """Run the negotiation advisor. Called in parallel by orchestrator."""
+    """Run negotiation advisor using full contract text. Called in parallel by orchestrator."""
     log.info("negotiation_agent: starting for doc_id=%s", doc_id)
 
-    # RAG: retrieve negotiation-relevant chunks
-    all_chunks = []
-    for query in NEGOTIATION_QUERIES:
-        chunks = retrieve_clauses(doc_id, query, n_results=2)
-        all_chunks.extend(chunks)
+    # Use full text — same as gap_agent
+    # Full text gives accurate context; RAG fragments cause hallucination
+    try:
+        full_text = get_full_text(doc_id)
+        words = full_text.split()
+        if len(words) > 4000:
+            full_text = " ".join(words[:4000]) + "\n[... document truncated ...]"
+    except Exception as e:
+        log.error("negotiation_agent: could not load full text: %s", e)
+        full_text = "Document text unavailable."
 
-    seen = set()
-    unique_chunks = []
-    for c in all_chunks:
-        if c["chunk_idx"] not in seen:
-            seen.add(c["chunk_idx"])
-            unique_chunks.append(c)
-
-    unique_chunks.sort(key=lambda x: x["relevance_score"], reverse=True)
-    top_chunks = unique_chunks[:5]  # Reduced from 8 to keep output manageable
-    context = format_chunks_for_prompt(top_chunks, max_chars=3000)  # Reduced from 4500
-
-    prompt = f"Suggest up to 4 negotiation improvements for this contract (keep each suggestion concise):\n\n{context}"
+    prompt = (
+        "Review this contract and suggest improvements ONLY for clauses that are "
+        "genuinely unfair. If the contract is already balanced, return empty suggestions.\n\n"
+        f"{full_text}"
+    )
 
     loop = asyncio.get_event_loop()
     response = await loop.run_in_executor(
@@ -131,7 +131,7 @@ async def run_negotiation_agent(doc_id: str) -> NegotiationAnalysis:
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=NEGOTIATION_SYSTEM,
-                temperature=0.2,
+                temperature=0.1,
                 max_output_tokens=4096,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
