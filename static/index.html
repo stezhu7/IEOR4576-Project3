@@ -180,10 +180,9 @@ main { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
   border-left: 4px solid var(--blue);
   background: var(--paper2);
 }
-.verdict-banner.risk-low    { border-left-color: var(--green); }
-.verdict-banner.risk-moderate { border-left-color: var(--amber); }
-.verdict-banner.risk-high   { border-left-color: var(--red); }
-.verdict-banner.risk-critical { border-left-color: var(--red); background: #fdf0ef; }
+.verdict-banner.score-green { border-left-color: var(--green); background: #f0faf5; }
+.verdict-banner.score-amber { border-left-color: var(--amber); background: #fdf8ef; }
+.verdict-banner.score-red   { border-left-color: var(--red);   background: #fdf0ef; }
 
 .verdict-top {
   display: flex;
@@ -197,9 +196,9 @@ main { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
   line-height: 1;
   color: var(--ink);
 }
-.risk-score.low      { color: var(--green); }
-.risk-score.moderate { color: var(--amber); }
-.risk-score.high, .risk-score.critical { color: var(--red); }
+.risk-score.score-green { color: var(--green); }
+.risk-score.score-amber { color: var(--amber); }
+.risk-score.score-red   { color: var(--red);   }
 .risk-label {
   font-family: var(--mono);
   font-size: 11px;
@@ -208,9 +207,9 @@ main { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
   padding: 3px 8px;
   border-radius: 2px;
 }
-.risk-label.low      { background: #e8f5ee; color: var(--green); }
-.risk-label.moderate { background: #fdf3e3; color: var(--amber); }
-.risk-label.high, .risk-label.critical { background: #fdf0ef; color: var(--red); }
+.risk-label.score-green { background: #e8f5ee; color: var(--green); }
+.risk-label.score-amber { background: #fdf3e3; color: var(--amber); }
+.risk-label.score-red   { background: #fdf0ef; color: var(--red);   }
 
 .verdict-summary {
   font-size: 14px;
@@ -491,6 +490,12 @@ main { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
   </div>
 </main>
 
+<footer style="text-align:center;padding:16px 24px 24px;border-top:1px solid var(--rule);margin-top:40px;">
+  <p style="font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.6;max-width:640px;margin:0 auto;">
+    Clause is positioned as first-pass contract risk screening, not legal advice. 
+  </p>
+</footer>
+
 <script>
 let selectedFile = null;
 let currentDocId = null;
@@ -582,16 +587,18 @@ function esc(s) {
 
 function renderResults(d) {
   const rl = d.risk_label;
+  const score = d.final_risk_score;
+  const scoreClass = score <= 3 ? 'score-green' : score <= 6 ? 'score-amber' : 'score-red';
 
   // Verdict banner
   const banner = document.getElementById('verdict-banner');
-  banner.className = `verdict-banner risk-${rl}`;
+  banner.className = `verdict-banner ${scoreClass}`;
   const scoreEl = document.getElementById('risk-score');
   scoreEl.textContent = d.final_risk_score + '/10';
-  scoreEl.className = `risk-score ${rl}`;
+  scoreEl.className = `risk-score ${scoreClass}`;
   const labelEl = document.getElementById('risk-label');
   labelEl.textContent = rl.toUpperCase();
-  labelEl.className = `risk-label ${rl}`;
+  labelEl.className = `risk-label ${scoreClass}`;
   document.getElementById('confidence-label').textContent = `Confidence: ${d.confidence}`;
   document.getElementById('doc-type-label').textContent = d.filename;
   document.getElementById('verdict-summary').textContent = d.executive_summary;
