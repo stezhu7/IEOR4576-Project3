@@ -59,24 +59,6 @@ Open `http://127.0.0.1:8000` and upload a contract PDF.
 
 ---
 
-## Deploying to Cloud Run
-
-```bash
-export PROJECT_ID=my-project-4576-project3
-
-gcloud builds submit . --tag gcr.io/$PROJECT_ID/clause-ai --project $PROJECT_ID
-
-gcloud run deploy clause-ai \
-  --image gcr.io/$PROJECT_ID/clause-ai \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --memory 2Gi \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_REGION=europe-west1" \
-  --project $PROJECT_ID
-```
-
----
-
 ## Architecture
 
 ```
