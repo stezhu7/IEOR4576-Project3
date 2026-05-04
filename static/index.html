@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clause — AI Contract Review</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:       #1a1814;
+  --ink2:      #4a4640;
+  --ink3:      #8a8480;
+  --paper:     #f8f5ef;
+  --paper2:    #f0ece2;
+  --paper3:    #e8e3d8;
+  --rule:      #d8d3c8;
+  --red:       #c0392b;
+  --amber:     #c07a17;
+  --green:     #1a7a4a;
+  --blue:      #1a4a7a;
+  --serif:     'DM Serif Display', Georgia, serif;
+  --sans:      'DM Sans', sans-serif;
+  --mono:      'DM Mono', monospace;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Top rule */
+body::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, var(--blue) 0%, var(--blue) 40%, var(--paper3) 100%);
+}
+
+header {
+  padding: 28px 48px 20px;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+.logo {
+  font-family: var(--serif);
+  font-size: 28px;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+}
+.logo span { color: var(--blue); }
+.tagline {
+  font-size: 12px;
+  color: var(--ink3);
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+main { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+
+/* Upload section */
+.upload-section { margin-bottom: 40px; }
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink3);
+  margin-bottom: 12px;
+}
+
+.drop-zone {
+  border: 1.5px dashed var(--rule);
+  border-radius: 4px;
+  padding: 48px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--paper2);
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--blue);
+  background: #f0f4fa;
+}
+.drop-zone input[type=file] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.drop-icon { font-size: 32px; margin-bottom: 12px; color: var(--ink3); }
+.drop-title { font-family: var(--serif); font-size: 18px; color: var(--ink2); margin-bottom: 4px; }
+.drop-sub { font-size: 12px; color: var(--ink3); }
+
+.file-selected {
+  display: none;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--paper3);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink2);
+  align-items: center;
+  gap: 10px;
+}
+.file-selected.show { display: flex; }
+
+.btn-analyze {
+  display: none;
+  margin-top: 16px;
+  width: 100%;
+  padding: 14px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: opacity 0.15s;
+}
+.btn-analyze:hover { opacity: 0.88; }
+.btn-analyze:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-analyze.show { display: block; }
+
+/* Progress */
+.progress-section {
+  display: none;
+  margin-bottom: 32px;
+}
+.progress-section.show { display: block; }
+.progress-steps {
+  display: flex;
+  gap: 0;
+  margin-bottom: 8px;
+}
+.step {
+  flex: 1;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink3);
+  border-bottom: 2px solid var(--rule);
+  transition: all 0.3s;
+}
+.step.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+.step.done {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+.progress-label {
+  font-size: 12px;
+  color: var(--ink3);
+  font-family: var(--mono);
+}
+
+/* Results */
+.results { display: none; }
+.results.show { display: block; }
+
+.verdict-banner {
+  padding: 24px 28px;
+  border-radius: 4px;
+  margin-bottom: 28px;
+  border-left: 4px solid var(--blue);
+  background: var(--paper2);
+}
+.verdict-banner.risk-low    { border-left-color: var(--green); }
+.verdict-banner.risk-moderate { border-left-color: var(--amber); }
+.verdict-banner.risk-high   { border-left-color: var(--red); }
+.verdict-banner.risk-critical { border-left-color: var(--red); background: #fdf0ef; }
+
+.verdict-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.risk-score {
+  font-family: var(--serif);
+  font-size: 42px;
+  line-height: 1;
+  color: var(--ink);
+}
+.risk-score.low      { color: var(--green); }
+.risk-score.moderate { color: var(--amber); }
+.risk-score.high, .risk-score.critical { color: var(--red); }
+.risk-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 3px 8px;
+  border-radius: 2px;
+}
+.risk-label.low      { background: #e8f5ee; color: var(--green); }
+.risk-label.moderate { background: #fdf3e3; color: var(--amber); }
+.risk-label.high, .risk-label.critical { background: #fdf0ef; color: var(--red); }
+
+.verdict-summary {
+  font-size: 14px;
+  color: var(--ink2);
+  line-height: 1.7;
+  margin-bottom: 14px;
+}
+
+.actions-list { list-style: none; padding: 0; }
+.actions-list li {
+  padding: 6px 0 6px 20px;
+  position: relative;
+  font-size: 13px;
+  color: var(--ink2);
+  border-top: 1px solid var(--rule);
+}
+.actions-list li::before {
+  content: counter(action-counter);
+  counter-increment: action-counter;
+  position: absolute;
+  left: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--blue);
+  top: 8px;
+}
+.actions-list { counter-reset: action-counter; }
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 24px;
+}
+.tab {
+  padding: 10px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--ink2); }
+.tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  font-size: 9px;
+  margin-left: 6px;
+  background: var(--paper3);
+  color: var(--ink2);
+}
+.tab.active .tab-badge { background: var(--blue); color: #fff; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Clause cards */
+.clause-card {
+  padding: 16px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.clause-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.severity-badge, .importance-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+.severity-high, .importance-critical  { background: #fdf0ef; color: var(--red); }
+.severity-medium, .importance-recommended { background: #fdf3e3; color: var(--amber); }
+.severity-low, .importance-optional   { background: #e8f5ee; color: var(--green); }
+.clause-title {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink);
+}
+.clause-explanation {
+  font-size: 13px;
+  color: var(--ink2);
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+.clause-excerpt {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink3);
+  background: var(--paper2);
+  padding: 8px 12px;
+  border-radius: 2px;
+  border-left: 2px solid var(--rule);
+  line-height: 1.6;
+}
+
+.suggestion-card {
+  padding: 16px 20px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+.sug-issue { font-size: 12px; color: var(--amber); margin-bottom: 8px; }
+.sug-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink3);
+  margin-bottom: 4px;
+}
+.sug-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 2px;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+.sug-old { background: #fdf0ef; border-left: 2px solid var(--red); color: var(--red); }
+.sug-new { background: #e8f5ee; border-left: 2px solid var(--green); color: var(--ink2); }
+.sug-benefit { font-size: 12px; color: var(--green); }
+
+.empty-state {
+  text-align: center;
+  padding: 32px;
+  color: var(--ink3);
+  font-size: 13px;
+}
+
+/* Download banner */
+.download-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--paper3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  margin-bottom: 24px;
+}
+.download-bar.show { display: flex; }
+.download-bar span { font-size: 13px; color: var(--ink2); }
+.btn-download {
+  padding: 7px 16px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: opacity 0.15s;
+}
+.btn-download:hover { opacity: 0.8; }
+
+.error-box {
+  display: none;
+  padding: 14px 18px;
+  background: #fdf0ef;
+  border: 1px solid #f5c1c1;
+  border-radius: 4px;
+  color: var(--red);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.error-box.show { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Clause<span>.</span></div>
+  <div class="tagline">AI Contract Review — Protect yourself before you sign</div>
+</header>
+
+<main>
+
+  <!-- Upload -->
+  <div class="upload-section">
+    <div class="section-label">Upload contract</div>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".pdf"/>
+      <div class="drop-icon">⟁</div>
+      <div class="drop-title">Drop your contract PDF here</div>
+      <div class="drop-sub">Freelance contracts, terms sheets, NDAs, employment agreements</div>
+    </div>
+    <div class="file-selected" id="file-selected">
+      <span>📄</span>
+      <span id="file-name">—</span>
+    </div>
+    <button class="btn-analyze" id="btn-analyze" onclick="startAnalysis()">
+      Analyse Contract →
+    </button>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-section" id="progress-section">
+    <div class="progress-steps">
+      <div class="step" id="step-1">① Ingesting</div>
+      <div class="step" id="step-2">② Risk analysis</div>
+      <div class="step" id="step-3">③ Gap detection</div>
+      <div class="step" id="step-4">④ Negotiation</div>
+      <div class="step" id="step-5">⑤ Critic review</div>
+    </div>
+    <div class="progress-label" id="progress-label">Parsing document...</div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="error-box"></div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+
+    <div class="download-bar" id="download-bar">
+      <span>Full PDF report ready</span>
+      <a class="btn-download" id="download-link" href="#" target="_blank">Download Report ↓</a>
+    </div>
+
+    <!-- Verdict -->
+    <div class="verdict-banner" id="verdict-banner">
+      <div class="verdict-top">
+        <div class="risk-score" id="risk-score">—</div>
+        <div>
+          <div class="risk-label" id="risk-label">—</div>
+          <div style="font-size:11px;color:var(--ink3);margin-top:4px;font-family:var(--mono)" id="confidence-label">—</div>
+        </div>
+        <div style="margin-left:auto;font-size:12px;color:var(--ink3);font-family:var(--mono)" id="doc-type-label">—</div>
+      </div>
+      <div class="verdict-summary" id="verdict-summary">—</div>
+      <div class="section-label" style="margin-bottom:6px">Recommended actions</div>
+      <ol class="actions-list" id="actions-list"></ol>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('risks')" id="tab-risks">
+        Risks <span class="tab-badge" id="badge-risks">0</span>
+      </div>
+      <div class="tab" onclick="showTab('gaps')" id="tab-gaps">
+        Missing terms <span class="tab-badge" id="badge-gaps">0</span>
+      </div>
+      <div class="tab" onclick="showTab('negotiate')" id="tab-negotiate">
+        Negotiate <span class="tab-badge" id="badge-negotiate">0</span>
+      </div>
+    </div>
+
+    <!-- Risk tab -->
+    <div class="tab-panel active" id="panel-risks"></div>
+
+    <!-- Gaps tab -->
+    <div class="tab-panel" id="panel-gaps"></div>
+
+    <!-- Negotiate tab -->
+    <div class="tab-panel" id="panel-negotiate"></div>
+
+  </div>
+</main>
+
+<script>
+let selectedFile = null;
+let currentDocId = null;
+
+// File selection
+const fileInput = document.getElementById('file-input');
+const dropZone  = document.getElementById('drop-zone');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) selectFile(fileInput.files[0]);
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+});
+
+function selectFile(f) {
+  selectedFile = f;
+  document.getElementById('file-name').textContent = f.name;
+  document.getElementById('file-selected').classList.add('show');
+  document.getElementById('btn-analyze').classList.add('show');
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('error-box').classList.remove('show');
+}
+
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  box.textContent = `Error: ${msg}`;
+  box.classList.add('show');
+  document.getElementById('progress-section').classList.remove('show');
+}
+
+function setStep(n, label) {
+  for (let i = 1; i <= 5; i++) {
+    const el = document.getElementById(`step-${i}`);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+  document.getElementById('progress-label').textContent = label;
+}
+
+async function startAnalysis() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('btn-analyze');
+  btn.disabled = true;
+  document.getElementById('progress-section').classList.add('show');
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('error-box').classList.remove('show');
+
+  // Step 1: Upload
+  setStep(1, 'Parsing and embedding document...');
+  const form = new FormData();
+  form.append('file', selectedFile);
+
+  let uploadData;
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: form });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Upload failed'); }
+    uploadData = await res.json();
+    currentDocId = uploadData.doc_id;
+  } catch (e) { showError(e.message); btn.disabled = false; return; }
+
+  // Steps 2-5: Analyze (parallel agents + critic)
+  setStep(2, `Document ingested (${uploadData.chunk_count} chunks). Running parallel analysis...`);
+  const t1 = setTimeout(() => setStep(3, 'Gap detection running...'), 4000);
+  const t2 = setTimeout(() => setStep(4, 'Negotiation analysis running...'), 8000);
+  const t3 = setTimeout(() => setStep(5, 'Critic reviewing findings...'), 14000);
+
+  let analysisData;
+  try {
+    const res = await fetch(`/analyze/${currentDocId}`, { method: 'POST' });
+    clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+    if (!res.ok) { const e = await res.json(); throw new Error(e.detail || 'Analysis failed'); }
+    analysisData = await res.json();
+  } catch (e) { showError(e.message); btn.disabled = false; return; }
+
+  setStep(5, 'Analysis complete.');
+  setTimeout(() => {
+    document.getElementById('progress-section').classList.remove('show');
+    renderResults(analysisData);
+    btn.disabled = false;
+  }, 800);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderResults(d) {
+  const rl = d.risk_label;
+
+  // Verdict banner
+  const banner = document.getElementById('verdict-banner');
+  banner.className = `verdict-banner risk-${rl}`;
+  const scoreEl = document.getElementById('risk-score');
+  scoreEl.textContent = d.final_risk_score + '/10';
+  scoreEl.className = `risk-score ${rl}`;
+  const labelEl = document.getElementById('risk-label');
+  labelEl.textContent = rl.toUpperCase();
+  labelEl.className = `risk-label ${rl}`;
+  document.getElementById('confidence-label').textContent = `Confidence: ${d.confidence}`;
+  document.getElementById('doc-type-label').textContent = d.filename;
+  document.getElementById('verdict-summary').textContent = d.executive_summary;
+
+  const actionsList = document.getElementById('actions-list');
+  actionsList.innerHTML = d.top_three_actions.map(a => `<li>${esc(a)}</li>`).join('');
+
+  // Download
+  if (d.report_path) {
+    document.getElementById('download-link').href = d.report_path;
+    document.getElementById('download-bar').classList.add('show');
+  }
+
+  // Risks tab
+  document.getElementById('badge-risks').textContent = d.risky_clauses.length;
+  const riskPanel = document.getElementById('panel-risks');
+  if (d.risky_clauses.length === 0) {
+    riskPanel.innerHTML = '<div class="empty-state">No significant risk clauses found.</div>';
+  } else {
+    riskPanel.innerHTML = d.risky_clauses.map(c => `
+      <div class="clause-card">
+        <div class="clause-header">
+          <span class="severity-badge severity-${c.severity}">${c.severity}</span>
+          <span class="clause-title">${esc(c.clause_title)}</span>
+          ${c.page_hint ? `<span style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${esc(c.page_hint)}</span>` : ''}
+        </div>
+        <div class="clause-explanation">${esc(c.explanation)}</div>
+        ${c.original_text ? `<div class="clause-excerpt">"${esc(c.original_text)}"</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  // Gaps tab
+  document.getElementById('badge-gaps').textContent = d.missing_terms.length;
+  const gapPanel = document.getElementById('panel-gaps');
+  if (d.missing_terms.length === 0) {
+    gapPanel.innerHTML = '<div class="empty-state">No critical missing terms found.</div>';
+  } else {
+    gapPanel.innerHTML = d.missing_terms.map(t => `
+      <div class="clause-card">
+        <div class="clause-header">
+          <span class="importance-badge importance-${t.importance}">${t.importance}</span>
+          <span class="clause-title">${esc(t.term_name)}</span>
+        </div>
+        <div class="clause-explanation">${esc(t.why_needed)}</div>
+        ${t.standard_language ? `<div class="clause-excerpt">Add: "${esc(t.standard_language)}"</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  // Negotiate tab
+  document.getElementById('badge-negotiate').textContent = d.suggestions.length;
+  const negPanel = document.getElementById('panel-negotiate');
+  if (d.suggestions.length === 0) {
+    negPanel.innerHTML = '<div class="empty-state">No negotiation suggestions available.</div>';
+  } else {
+    negPanel.innerHTML = d.suggestions.map(s => `
+      <div class="suggestion-card">
+        <div class="clause-header">
+          <span class="clause-title">${esc(s.clause_title)}</span>
+        </div>
+        <div class="sug-issue">⚠ ${esc(s.issue)}</div>
+        <div class="sug-label">Current language</div>
+        <div class="sug-text sug-old">"${esc(s.original_text)}"</div>
+        <div class="sug-label">Suggested replacement</div>
+        <div class="sug-text sug-new">"${esc(s.suggested_text)}"</div>
+        <div class="sug-benefit">✓ ${esc(s.benefit_to_user)}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('results').classList.add('show');
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showTab(name) {
+  ['risks','gaps','negotiate'].forEach(t => {
+    document.getElementById(`tab-${t}`).className = 'tab' + (t === name ? ' active' : '');
+    document.getElementById(`panel-${t === 'risks' ? 'risks' : t === 'gaps' ? 'gaps' : 'negotiate'}`).className =
+      'tab-panel' + (t === name ? ' active' : '');
+  });
+}
+</script>
+</body>
+</html>
