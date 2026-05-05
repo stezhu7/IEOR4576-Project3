@@ -234,6 +234,25 @@ Non-contract documents (resumes, reports, presentations) are rejected at ingesti
 
 ---
 
+## Privacy & Data Handling
+
+Clause is designed for **transient processing** — contract text is never stored beyond the duration of a single analysis session.
+
+| Stage | What happens | Retention |
+|---|---|---|
+| Upload | PDF parsed to text, chunked, embedded | Deleted from disk after analysis completes |
+| Analysis | Full text sent to Vertex AI (Gemini) for agent calls | Google's [data processing terms](https://cloud.google.com/terms/data-processing-terms) apply |
+| ChromaDB | Contract embeddings stored locally during session | Deleted from ChromaDB after analysis completes |
+| PDF report | Generated report saved to `artifacts/` | Persists for download; cleared on container restart |
+
+**After `/analyze/{doc_id}` returns:** the full-text JSON file and all ChromaDB embeddings for that document are deleted from disk (`_cleanup_document()` in `app/main.py`).
+
+**Vertex AI data processing:** Contract text is sent to Google Vertex AI for Gemini inference. Under Google Cloud's data processing terms, customer data is not used to train Google's models. See [Google Cloud data governance](https://cloud.google.com/terms/data-processing-terms).
+
+**Recommendation for sensitive contracts:** For highly confidential documents (M&A, litigation-related), consider self-hosting this application within your own GCP project to ensure data never leaves your infrastructure.
+
+---
+
 ## API Reference
 
 | Endpoint | Method | Description |

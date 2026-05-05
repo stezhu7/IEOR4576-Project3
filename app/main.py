@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -73,12 +74,39 @@ async def upload_contract(file: UploadFile = File(...)):
     )
 
 
+def _cleanup_document(doc_id: str) -> None:
+    """
+    Delete contract text from disk after analysis — privacy protection.
+    Removes: full-text JSON, ChromaDB embeddings for this doc.
+    The generated PDF report is kept (user needs to download it).
+    """
+    import json
+    from app.tools.ingest_tool import get_collection
+
+    store_dir = Path(__file__).resolve().parent.parent / "data" / "documents"
+    json_path = store_dir / f"{doc_id}.json"
+    if json_path.exists():
+        json_path.unlink()
+        log.info("cleanup: deleted %s", json_path)
+
+    try:
+        collection = get_collection()
+        collection.delete(where={"doc_id": doc_id})
+        log.info("cleanup: deleted ChromaDB entries for doc_id=%s", doc_id)
+    except Exception as e:
+        log.warning("cleanup: ChromaDB delete failed: %s", e)
+
+    _doc_store.pop(doc_id, None)
+    log.info("cleanup: doc_id=%s fully purged", doc_id)
+
+
 @app.post("/analyze/{doc_id}", response_model=AnalyzeResponse)
 async def analyze(doc_id: str):
     """
     Steps 2 + 3: Run parallel agent analysis and return structured report.
     Triggers Risk, Gap, and Negotiation agents in parallel, then Critic.
     Also generates a downloadable PDF artifact.
+    Contract text files are deleted from disk after analysis (privacy).
     """
     if doc_id not in _doc_store:
         raise HTTPException(status_code=404, detail="Document not found. Upload it first.")
@@ -96,13 +124,14 @@ async def analyze(doc_id: str):
         log.exception("analyze: pipeline failed")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
 
-    # Generate PDF artifact
     try:
         report_path = generate_report(report)
         report_filename = Path(report_path).name
     except Exception as e:
         log.error("analyze: report generation failed: %s", e)
         report_filename = None
+
+    _cleanup_document(doc_id)
 
     return AnalyzeResponse(
         doc_id=doc_id,
